@@ -1,0 +1,169 @@
+<?php
+
+/**
+ * @file
+ * Contains esuremenu.module..
+ */
+
+use Drupal\Core\Routing\RouteMatchInterface;
+
+use Drupal\Core\Menu\MenuLinkInterface;
+use Drupal\Core\Form\FormStateInterface;
+use Drupal\menu_link_content\Plugin\Menu\MenuLinkContent;
+
+/**
+ * Implements hook_help().
+ */
+function esuremenu_help($route_name, RouteMatchInterface $route_match) {
+  switch ($route_name) {
+    // Main module help for the esuremenu module.
+    case 'help.page.esuremenu':
+      $output = '';
+      $output .= '<h3>' . t('About') . '</h3>';
+      $output .= '<p>' . t('My Awesome Module') . '</p>';
+      return $output;
+
+    default:
+  }
+}
+
+function esuremenu_page_attachments_alter(array &$page) {
+
+  $page['#attached']['drupalSettings']['esuremenu']['breakpoint'] = '(max-width: 620px)';
+
+}
+
+/**
+ * Implements hook_form_BASE_FORM_ID_alter() for menu_link_content_form.
+ */
+function esuremenu_form_menu_link_content_form_alter(array &$form, FormStateInterface $form_state, $form_id) {
+  $menuLink = esuremenu_get_menu_link_entity_from_form_state($form_state);
+  $linkOptions = $menuLink->link->first()->options;
+  $linkAttributes = !empty($linkOptions['attributes']) ? $linkOptions['attributes'] : array();
+
+  // Add attributes to the menu item.
+  $form['options']['attributes'] = array(
+    '#type' => 'details',
+    '#title' => t('Menu item attributes'),
+    '#collapsible' => TRUE,
+    '#collapsed' => FALSE,
+    '#tree' => TRUE,
+  );
+
+  $form['options']['attributes']['class'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Classes'),
+    '#description' => t('Enter additional classes to be added to the menu item.'),
+    '#default_value' => !empty($linkAttributes['class']) ? implode(' ', $linkAttributes['class']) : '',
+  );
+
+  $form['options']['attributes']['data-title'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Short title'),
+    '#description' => t('Enter short title for mobile menu item.'),
+    '#default_value' => !empty($linkAttributes['data-title']) ? $linkAttributes['data-title'] : '',
+  );
+
+  $form['actions']['submit']['#submit'][] = 'esuremenu_form_menu_link_content_form_submit';
+}
+
+/**
+ * Additional submit handler for menu_link_content_form.
+ */
+function esuremenu_form_menu_link_content_form_submit(array &$form, FormStateInterface $form_state) {
+  $values = $form_state->getValues();
+  $attributes = array();
+
+  foreach ($values['attributes'] as $attribute => $value) {
+    $value = trim($value);
+    if (!empty($value)) {
+      if ($attribute == 'class') {
+        $value = explode(' ', $value);
+      }
+      $attributes[$attribute] = $value;
+    }
+  }
+
+  $menuLinkEntity = esuremenu_get_menu_link_entity_from_form_state($form_state);
+  $options = $menuLinkEntity->link->first()->options;
+  $changed = FALSE;
+  if (empty($attributes)) {
+    if (!empty($options['attributes'])) {
+      unset($options['attributes']);
+      $changed = TRUE;
+    }
+  }
+  else {
+    $options['attributes'] = $attributes;
+    $changed = TRUE;
+  }
+
+  if ($changed) {
+    $menuLinkEntity->link->first()->options = $options;
+    $menuLinkEntity->save();
+  }
+}
+
+function esuremenu_get_menu_link_entity_from_form_state(FormStateInterface $form_state) {
+  $buildInfo = $form_state->getBuildInfo();
+  $menuLinkContentForm = $buildInfo['callback_object'];
+  return $menuLinkContentForm->getEntity();
+}
+/**
+ * Implements hook_preprocess_menu().
+ *
+ * Workaround for randomly lost menu item options: load link entities and
+ * restore lost link attributes.
+ */
+function esuremenu_preprocess_menu(&$variables, $hook) {
+  $items = $variables['items'];
+  /**
+   * @var \Drupal\Core\Menu\MenuLinkInterface $item
+   */
+  foreach ($items as $item) {
+    /**
+     * @var \Drupal\Core\Entity\EntityInterface|null $entity
+     */
+    $menuLinkEntity = esuremenu_load_link_entity_by_link($item['original_link']);
+
+    if ($menuLinkEntity instanceof \Drupal\Core\Entity\EntityInterface) {
+      if (!empty($menuLinkEntity->link->first()->options['attributes'])) {
+        foreach ($menuLinkEntity->link->first()->options['attributes'] as $attribute => $value) {
+          if ($attribute == 'class') {
+            foreach ($value as $cssClass) {
+              if (!$item['attributes']->hasClass($cssClass)) {
+                $item['attributes']->addClass($cssClass);
+              }
+            }
+          }
+          else {
+            $item['attributes']->setAttribute($attribute, $value);
+          }
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Get an entity related to a MenuLink, if there is one
+ *
+ * @param \Drupal\Core\Menu\MenuLinkInterface $menuLinkContentPlugin
+ * @return \Drupal\Core\Entity\EntityInterface|null
+ * @throws \Drupal\Core\Entity\EntityStorageException
+ */
+function esuremenu_load_link_entity_by_link(MenuLinkInterface $menuLinkContentPlugin) {
+  $entity = NULL;
+  if ($menuLinkContentPlugin instanceof MenuLinkContent) {
+    list($entity_type, $uuid) = explode(':', $menuLinkContentPlugin->getPluginId(), 2);
+    /**
+     * @var Drupal\Core\Entity\EntityRepository $repo
+     */
+    $repo = Drupal::getContainer()->get('entity.repository');
+    /**
+     * @var \Drupal\Core\Entity\EntityInterface|null $entity
+     */
+    $entity = $repo->loadEntityByUuid($entity_type, $uuid);
+  }
+  return $entity;
+}
