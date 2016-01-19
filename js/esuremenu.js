@@ -10,13 +10,6 @@
 
 var mobileBreakpoint = window.matchMedia(drupalSettings.esuremenu.breakpoint);
 
-function getMobileBreakpoints() {
-  $('ul.menu').find('data-breakpoint').each(function(){
-    var mobileBreakpoint = '(max-width: '.$(this).attr('data-breakpoint').'px)';
-    console.log(mobileBreakpoint);
-  })
-}
-
 function mediaqueryresponse(){
   $('ul.menu').find('[data-title]').each(function(){
     var $item = $(this).children();
@@ -50,7 +43,6 @@ Drupal.behaviors.esuremenu = {
     if (!window.matchMedia('only screen').matches) {
       return;
     }
-    getMobileBreakpoints();
     mediaqueryresponse(mobileBreakpoint) // call listener function explicitly at run time
     mobileBreakpoint.addListener(mediaqueryresponse) // attach listener function to listen in on state changes
 
