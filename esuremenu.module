@@ -34,30 +34,33 @@ function esuremenu_page_attachments_alter(array &$page) {
 }
 
 /**
- * Implements hook_form_BASE_FORM_ID_alter() for menu_link_content_form.
+ * Implements hook_form_alter().
  */
-function esuremenu_form_menu_form_alter(array &$form, FormStateInterface $form_state, $form_id) {
-  $menu = esuremenu_get_menu_entity_from_form_state($form_state);
-  $menuOptions = $menu->options;
-  $menuAttributes = !empty($menuOptions['attributes']) ? $menuOptions['attributes'] : array();
+function esuremenu_form_alter(&$form, FormStateInterface $form_state, $form_id) {
+  if ($form_id === 'menu_add_form' || $form_id === 'menu_edit_form') {
+    esuremenu_alter_menu_forms($form, $form_state, $form_id);
+  }
+}
 
-  // Add attributes to the menu.
-  $form['options']['attributes'] = array(
-    '#type' => 'details',
-    '#title' => t('Menu breakpoint settings'),
-    '#collapsible' => TRUE,
-    '#collapsed' => FALSE,
-    '#tree' => TRUE,
-  );
-
-  $form['options']['attributes']['data-breakpoint'] = array(
+/**
+ * Handles the form alter for the menu_add_form and menu_edit_form forms.
+ */
+function esuremenu_alter_menu_forms(&$form, FormStateInterface $form_state, $form_id) {
+  $menu = $form_state->getFormObject()->getEntity();
+  $form['data-breakpoint'] = array(
     '#type' => 'textfield',
-    '#title' => t('Menu breakpoint for mobile (value in pixels)'),
-    '#default_value' => !empty($menuAttributes['data-breakpoint']) ? $menuAttributes['data-breakpoint'] : '',
+    '#title' => t('Breakpoint'),
+    '#description' => t('This is breakpoint for short menu item title'),
+    '#default_value' => $menu->getThirdPartySetting('esuremenu', 'data-breakpoint'),
+    '#weight' => 1
   );
 
-  $form['actions']['submit']['#validate'][] = 'esuremenu_form_menu_form_validate';
-  $form['actions']['submit']['#submit'][] = 'esuremenu_form_menu_form_submit';
+  if (isset($form['links'])) {
+    $form['links']['#weight'] = 2;
+  }
+
+  $form['#validate'][] = 'esuremenu_form_menu_form_validate';
+  $form['#entity_builders'][] = 'esuremenu_form_menu_add_form_builder';
 }
 
 /**
@@ -66,71 +69,23 @@ function esuremenu_form_menu_form_alter(array &$form, FormStateInterface $form_s
 function esuremenu_form_menu_form_validate(array &$form, FormStateInterface $form_state) {
   $breakpoint = $form_state->getValue('data-breakpoint');
   if(!empty($breakpoint)) {
-    if(!is_numeric($breakpoint) && $breakpoint < 0) {
-      $form_state->setErrorByName('data-breakpoint', t('The typed value must be a number.'));
+    if(!is_numeric($breakpoint) || $breakpoint < 0) {
+      $form_state->setErrorByName('data-breakpoint', t('The typed value must be a positive number.'));
     }
   }
 }
 
 /**
- * Additional submit handler for menu_form.
+ * Entity builder for the menu configuration entity.
  */
-function esuremenu_form_menu_form_submit(array &$form, FormStateInterface $form_state) {
-  /*$values = $form_state->getValues();
-  $breakpoints = array();
-
-  foreach ($values['attributes'] as $option => $value) {
-    $value = trim($value);
-    if (!empty($value)) {
-      $breakpoints[$option] = $value;
-    }
+function esuremenu_form_menu_add_form_builder($entity_type, \Drupal\system\Entity\Menu $menu, &$form, \Drupal\Core\Form\FormStateInterface $form_state) {
+  $value = $form_state->getValue('data-breakpoint');
+  if ($value <> '') {
+    $menu->setThirdPartySetting('esuremenu', 'data-breakpoint', $form_state->getValue('data-breakpoint'));
+    return;
   }
 
-  $menuEntity = esuremenu_get_menu_entity_from_form_state($form_state);
-  $options = $menuEntity->options;
-  $changed = FALSE;
-  if (empty($breakpoints)) {
-    if (!empty($options['attributes'])) {
-      unset($options['attributes']);
-      $changed = TRUE;
-    }
-  }
-  else {
-    $options['attributes'] = $breakpoints;
-    $changed = TRUE;
-  }
-
-  if ($changed) {
-    $menuEntity->options = $options;
-    $menuEntity->save();
-  }*/
-  $breakpoints = $form_state->getValue('data-breakpoint');
-
-  $menuEntity = esuremenu_get_menu_entity_from_form_state($form_state);
-  $options = $menuEntity->options;
-
-  $changed = FALSE;
-  if (empty($breakpoints)) {
-    if (!empty($options['attributes']['data-breakpoint'])) {
-      unset($options['attributes']['data-breakpoint']);
-      $changed = TRUE;
-    }
-  }
-  else {
-    $options['attributes']['data-breakpoint'] = $breakpoints;
-    $changed = TRUE;
-  }
-
-  if ($changed) {
-    $menuEntity->options = $options;
-    $menuEntity->save();
-  }
-}
-
-function esuremenu_get_menu_entity_from_form_state(FormStateInterface $form_state) {
-  $buildInfo = $form_state->getBuildInfo();
-  $menuForm = $buildInfo['callback_object'];
-  return $menuForm->getEntity();
+  $menu->unsetThirdPartySetting('esuremenu', 'data-breakpoint');
 }
 
 /**
@@ -216,6 +171,12 @@ function esuremenu_get_menu_link_entity_from_form_state(FormStateInterface $form
  * restore lost link attributes.
  */
 function esuremenu_preprocess_menu(&$variables, $hook) {
+
+  $menu = \Drupal\system\Entity\Menu::load($variables['menu_name']);
+  $breakpoint = $menu->getThirdPartySetting('esuremenu', 'data-breakpoint');
+
+  $variables['attributes']['data-breakpoint'] = $breakpoint;
+
   $items = $variables['items'];
   /**
    * @var \Drupal\Core\Menu\MenuLinkInterface $item
