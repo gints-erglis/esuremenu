@@ -8,18 +8,40 @@
 (function ($, Drupal, drupalSettings) {
 'use strict';
 
-var mobileBreakpoint = window.matchMedia(drupalSettings.esuremenu.breakpoint);
+var mobileBreakpoint = [];
 
-function mediaqueryresponse(){
-  $('ul.menu').find('[data-title]').each(function(){
-    var $item = $(this).children();
-    if (mobileBreakpoint.matches){
-      $item.attr('data-old-title', $item.text());
-      $item.text($(this).attr('data-title'));
-    } else {
-      $item.text($item.attr('data-old-title'));
+function getMobileBreakpoints() {
+  var count = 0;
+  $('ul.menu').each(function(){
+    if($(this).is('[data-breakpoint]')){
+      var breakpoint = "(max-width: "+$(this).attr('data-breakpoint')+"px)";
+      mobileBreakpoint[count] = breakpoint;
+      mediaqueryresponse(mobileBreakpoint[count]);
+      window.matchMedia(mobileBreakpoint[count]).addListener(function(){ mediaqueryresponse(breakpoint); });
+      count ++;
     }
   });
+}
+
+function mediaqueryresponse(breakpoint){
+  $('ul.menu').each(function(){
+    if($(this).is('[data-breakpoint]')){
+      var dataBreakpoint = "(max-width: "+$(this).attr('data-breakpoint')+"px)";
+      if(dataBreakpoint === breakpoint) {
+        $(this).find('[data-title]').each(function(){
+          var $item = $(this).children();
+          if (window.matchMedia(breakpoint).matches){
+            $item.attr('data-old-title', $item.text());
+            $item.text($(this).attr('data-title'));
+          }
+          else {
+            $item.text($item.attr('data-old-title'));
+          }
+        });
+      }
+    }
+  });
+
 }
 
 Drupal.behaviors.esuremenu = {
@@ -43,9 +65,8 @@ Drupal.behaviors.esuremenu = {
     if (!window.matchMedia('only screen').matches) {
       return;
     }
-    mediaqueryresponse(mobileBreakpoint) // call listener function explicitly at run time
-    mobileBreakpoint.addListener(mediaqueryresponse) // attach listener function to listen in on state changes
 
+    getMobileBreakpoints();
   }
 };
 
