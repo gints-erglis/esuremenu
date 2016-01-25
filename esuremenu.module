@@ -29,7 +29,7 @@ function esuremenu_help($route_name, RouteMatchInterface $route_match) {
 
 function esuremenu_page_attachments_alter(array &$page) {
 
-  $page['#attached']['drupalSettings']['esuremenu']['breakpoint'] = '(max-width: 620px)';
+  $page['#attached']['library'][] = 'esuremenu/esuremenu';
 
 }
 

@@ -8,18 +8,49 @@
 (function ($, Drupal, drupalSettings) {
 'use strict';
 
-var mobileBreakpoint = window.matchMedia(drupalSettings.esuremenu.breakpoint);
+var mobileBreakpoints = [];
 
-function mediaqueryresponse(){
-  $('ul.menu').find('[data-title]').each(function(){
-    var $item = $(this).children();
-    if (mobileBreakpoint.matches){
-      $item.attr('data-old-title', $item.text());
-      $item.text($(this).attr('data-title'));
-    } else {
-      $item.text($item.attr('data-old-title'));
+function isValidBreakpoint(breakpoint){
+    return ($.inArray(breakpoint, mobileBreakpoints) > -1);
+}
+
+function getMobileBreakpoints() {
+  $('ul.menu').each(function(){
+    if($(this).is('[data-breakpoint]')){
+      var mobilebreakpoint = "(max-width: "+$(this).attr('data-breakpoint')+"px)";
+
+      //Verify that breakpoint values do not repeat to avoid multiple identical listeners
+      if(!isValidBreakpoint(mobilebreakpoint)){
+        mobileBreakpoints.push(mobilebreakpoint);
+        mediaqueryresponse(mobilebreakpoint);
+        window.matchMedia(mobilebreakpoint).addListener(function(){ mediaqueryresponse(mobilebreakpoint); });
+      }
     }
   });
+}
+
+function mediaqueryresponse(breakpoint){
+  $('ul.menu').each(function(){
+    if($(this).is('[data-breakpoint]')){
+      var dataBreakpoint = "(max-width: "+$(this).attr('data-breakpoint')+"px)";
+
+      // check if ul breakpoint value is the same as listeners
+      if(dataBreakpoint === breakpoint) {
+        $(this).find('[data-title]').each(function(){
+          var $item = $(this).children();
+
+          if (window.matchMedia(breakpoint).matches){
+            $item.attr('data-old-title', $item.text());
+            $item.text($(this).attr('data-title'));
+          }
+          else {
+            $item.text($item.attr('data-old-title'));
+          }
+        });
+      }
+    }
+  });
+
 }
 
 Drupal.behaviors.esuremenu = {
@@ -43,9 +74,8 @@ Drupal.behaviors.esuremenu = {
     if (!window.matchMedia('only screen').matches) {
       return;
     }
-    mediaqueryresponse(mobileBreakpoint) // call listener function explicitly at run time
-    mobileBreakpoint.addListener(mediaqueryresponse) // attach listener function to listen in on state changes
 
+    getMobileBreakpoints();
   }
 };
 
