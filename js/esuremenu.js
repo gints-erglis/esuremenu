@@ -8,17 +8,23 @@
 (function ($, Drupal, drupalSettings) {
 'use strict';
 
-var mobileBreakpoint = [];
+var mobileBreakpoints = [];
+
+function isValidBreakpoint(breakpoint){
+    return ($.inArray(breakpoint, mobileBreakpoints) > -1);
+}
 
 function getMobileBreakpoints() {
-  var count = 0;
   $('ul.menu').each(function(){
     if($(this).is('[data-breakpoint]')){
-      var breakpoint = "(max-width: "+$(this).attr('data-breakpoint')+"px)";
-      mobileBreakpoint[count] = breakpoint;
-      mediaqueryresponse(mobileBreakpoint[count]);
-      window.matchMedia(mobileBreakpoint[count]).addListener(function(){ mediaqueryresponse(breakpoint); });
-      count ++;
+      var mobilebreakpoint = "(max-width: "+$(this).attr('data-breakpoint')+"px)";
+
+      //Verify that breakpoint values do not repeat to avoid multiple identical listeners
+      if(!isValidBreakpoint(mobilebreakpoint)){
+        mobileBreakpoints.push(mobilebreakpoint);
+        mediaqueryresponse(mobilebreakpoint);
+        window.matchMedia(mobilebreakpoint).addListener(function(){ mediaqueryresponse(mobilebreakpoint); });
+      }
     }
   });
 }
@@ -27,9 +33,12 @@ function mediaqueryresponse(breakpoint){
   $('ul.menu').each(function(){
     if($(this).is('[data-breakpoint]')){
       var dataBreakpoint = "(max-width: "+$(this).attr('data-breakpoint')+"px)";
+
+      // check if ul breakpoint value is the same as listeners
       if(dataBreakpoint === breakpoint) {
         $(this).find('[data-title]').each(function(){
           var $item = $(this).children();
+
           if (window.matchMedia(breakpoint).matches){
             $item.attr('data-old-title', $item.text());
             $item.text($(this).attr('data-title'));
